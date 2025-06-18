@@ -41,7 +41,7 @@ double step;
 char *algo;
 
 // Required RK4 variables
-double **y, **y_n, **temp, **k1, **k2, **k3, **k4;
+double *y_1, *y_2, *y_3, *y_4, *y_n, *tmp, *k1, *k2, *k3, *k4;
 
 // Create body struct
 typedef struct {
@@ -136,6 +136,12 @@ void add_hist(Body *array, unsigned int index, unsigned int t) {
 
 // Compute acceleration for bodies
 void set_acc(Body *array) {
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].acc[0] = 0.0;
+		array[i].acc[1] = 0.0;
+		array[i].acc[2] = 0.0;
+	}
+
 	for (unsigned int i = 0; i < size - 1; i++) {
 		for (long unsigned int j = i + 1; j < size; j++) {
 			// Compute vector
@@ -165,15 +171,6 @@ void set_acc(Body *array) {
 	}
 }
 
-// Reset all body acceleration vectors to zero
-void reset_acc(Body *array) {
-	for (unsigned int i = 0; i < size; i++) {
-		array[i].acc[0] = 0.0;
-		array[i].acc[1] = 0.0;
-		array[i].acc[2] = 0.0;
-	}
-}
-
 // Compute next step using Euler-Cromer
 void euler(Body *array, unsigned int t) {
 	// Compute acceleration for all bodies
@@ -194,9 +191,6 @@ void euler(Body *array, unsigned int t) {
 		// Add position to history
 		add_hist(array, i, t);
 	}
-
-	// Reset accelerations to zero
-	reset_acc(array);
 }
 
 // Compute next step using position Verlet
@@ -226,182 +220,121 @@ void verlet(Body *array, unsigned int t) {
 		// Add position to history
 		add_hist(array, i, t);
 	}
-
-	// Reset accelerations to zero
-	reset_acc(array);
 }
 
 // Allocate memory for RK4 arrays
 void init_rk4(void) {
 	// Allocate memory for rows
-	y = calloc(size, sizeof(double *));
-	y_n = calloc(size, sizeof(double *));
-	temp = calloc(size, sizeof(double *));
+	y_1 = calloc(size * 6, sizeof(double));
+	y_2 = calloc(size * 6, sizeof(double));
+	y_3 = calloc(size * 6, sizeof(double));
+	y_4 = calloc(size * 6, sizeof(double));
+	y_n = calloc(size * 6, sizeof(double));
+	tmp = calloc(size * 6, sizeof(double));
 
-	k1 = calloc(size, sizeof(double *));
-	k2 = calloc(size, sizeof(double *));
-	k3 = calloc(size, sizeof(double *));
-	k4 = calloc(size, sizeof(double *));
+	k1 = calloc(size * 6, sizeof(double));
+	k2 = calloc(size * 6, sizeof(double));
+	k3 = calloc(size * 6, sizeof(double));
+	k4 = calloc(size * 6, sizeof(double));
 
 	// Check for memory allocation errors
-	if (y == NULL || y_n == NULL || temp == NULL || k1 == NULL || k2 == NULL || k3 == NULL || k4 == NULL) {
+	if (y_1 == NULL || y_2 == NULL || y_3 == NULL || y_4 == NULL || y_n == NULL || tmp == NULL || k1 == NULL || k2 == NULL || k3 == NULL || k4 == NULL) {
 		printf("No more memory to allocate!\n");
 		exit(1);
 	}
-
-	// Allocate memory for columns
-	for (unsigned int i = 0; i < size; i++) {
-		y[i] = calloc(6, sizeof(double));
-		y_n[i] = calloc(6, sizeof(double));
-		temp[i] = calloc(6, sizeof(double));
-
-		k1[i] = calloc(6, sizeof(double));
-		k2[i] = calloc(6, sizeof(double));
-		k3[i] = calloc(6, sizeof(double));
-		k4[i] = calloc(6, sizeof(double));
-
-		// Check for memory allocation errors
-		if (y[i] == NULL || y_n[i] == NULL || temp[i] == NULL || k1[i] == NULL || k2[i] == NULL || k3[i] == NULL || k4[i] == NULL) {
-			printf("No more memory to allocate!\n");
-			exit(1);
-		}
-	}
 }
 
-void f(Body *array, double **y) {
+void f(Body *array, double *y) {
 	// Assign new position
 	for (unsigned int i = 0; i < size; i++) {
-		array[i].pos[0] = y[i][0];
-		array[i].pos[1] = y[i][1];
-		array[i].pos[2] = y[i][2];
+		array[i].pos[0] = y[6 * i + 0];
+		array[i].pos[1] = y[6 * i + 1];
+		array[i].pos[2] = y[6 * i + 2];
 	}
 
 	// Compute acceleration for all bodies
 	set_acc(array);
 
-	// Set values for temp array (acts as return)
+	// Set values for tmp array (acts as return)
 	for (unsigned int i = 0; i < size; i++) {
 		// Velocity
-		temp[i][0] = y[i][3];
-		temp[i][1] = y[i][4];
-		temp[i][2] = y[i][5];
+		tmp[6 * i + 0] = y[6 * i + 3];
+		tmp[6 * i + 1] = y[6 * i + 4];
+		tmp[6 * i + 2] = y[6 * i + 5];
 
 		// Acceleration
-		temp[i][3] = array[i].acc[0];
-		temp[i][4] = array[i].acc[1];
-		temp[i][5] = array[i].acc[2];
+		tmp[6 * i + 3] = array[i].acc[0];
+		tmp[6 * i + 4] = array[i].acc[1];
+		tmp[6 * i + 5] = array[i].acc[2];
 	}
-
-	// Reset accelerations to zero
-	reset_acc(array);
 }
 
 void rk4(Body *array, unsigned int t) {
 	// Assign values of y1
 	for (unsigned int i = 0; i < size; i++) {
-		y[i][0] = array[i].pos[0];
-		y[i][1] = array[i].pos[1];
-		y[i][2] = array[i].pos[2];
-		y[i][3] = array[i].vel[0];
-		y[i][4] = array[i].vel[1];
-		y[i][5] = array[i].vel[2];
+		y_1[6 * i + 0] = array[i].pos[0];
+		y_1[6 * i + 1] = array[i].pos[1];
+		y_1[6 * i + 2] = array[i].pos[2];
+		y_1[6 * i + 3] = array[i].vel[0];
+		y_1[6 * i + 4] = array[i].vel[1];
+		y_1[6 * i + 5] = array[i].vel[2];
 	}
 
 	// Compute k1
 	for (unsigned int i = 0; i < size; i++) {
-		f(array, y);
-		k1[i][0] = temp[i][0];
-		k1[i][1] = temp[i][1];
-		k1[i][2] = temp[i][2];
-		k1[i][3] = temp[i][3];
-		k1[i][4] = temp[i][4];
-		k1[i][5] = temp[i][5];
+		f(array, y_1);
+		for (int j = 0; j < 6; j++) k1[6 * i + j] = tmp[6 * i + j];
 	}
 
-	// Set y2 = y + step * k1 / 2 (using temp)
+	// Set y2 = y + step * k1 / 2 (using tmp)
 	for (unsigned int i = 0; i < size; i++) {
-		temp[i][0] = y[i][0] + step * k1[i][0] * 0.5;
-		temp[i][1] = y[i][1] + step * k1[i][1] * 0.5;
-		temp[i][2] = y[i][2] + step * k1[i][2] * 0.5;
-		temp[i][3] = y[i][3] + step * k1[i][3] * 0.5;
-		temp[i][4] = y[i][4] + step * k1[i][4] * 0.5;
-		temp[i][5] = y[i][5] + step * k1[i][5] * 0.5;
+		for (int j = 0; j < 6; j++) y_2[6 * i + j] = y_1[6 * i + j] + (0.5 * step * k1[6 * i + j]);
 	}
 
 	// Compute k2
 	for (unsigned int i = 0; i < size; i++) {
-		f(array, temp);
-		k2[i][0] = temp[i][0];
-		k2[i][1] = temp[i][1];
-		k2[i][2] = temp[i][2];
-		k2[i][3] = temp[i][3];
-		k2[i][4] = temp[i][4];
-		k2[i][5] = temp[i][5];
+		f(array, y_2);
+		for (int j = 0; j < 6; j++) k2[6 * i + j] = tmp[6 * i + j];
 	}
 
-	// Set y3 = y + step * k2 / 2 (using temp)
+	// Set y3 = y + step * k2 / 2 (using tmp)
 	for (unsigned int i = 0; i < size; i++) {
-		temp[i][0] = y[i][0] + step * k2[i][0] * 0.5;
-		temp[i][1] = y[i][1] + step * k2[i][1] * 0.5;
-		temp[i][2] = y[i][2] + step * k2[i][2] * 0.5;
-		temp[i][3] = y[i][3] + step * k2[i][3] * 0.5;
-		temp[i][4] = y[i][4] + step * k2[i][4] * 0.5;
-		temp[i][5] = y[i][5] + step * k2[i][5] * 0.5;
+		for (int j = 0; j < 6; j++) y_3[6 * i + j] = y_1[6 * i + j] + (0.5 * step * k2[6 * i + j]);
 	}
 
 	// Compute k3
 	for (unsigned int i = 0; i < size; i++) {
-		f(array, temp);
-		k3[i][0] = temp[i][0];
-		k3[i][1] = temp[i][1];
-		k3[i][2] = temp[i][2];
-		k3[i][3] = temp[i][3];
-		k3[i][4] = temp[i][4];
-		k3[i][5] = temp[i][5];
+		f(array, y_3);
+		for (int j = 0; j < 6; j++) k3[6 * i + j] = tmp[6 * i + j];
 	}
 
-	// Set y4 = y + step * k3 (using temp)
+	// Set y4 = y + step * k3 (using tmp)
 	for (unsigned int i = 0; i < size; i++) {
-		temp[i][0] = y[i][0] + step * k3[i][0];
-		temp[i][1] = y[i][1] + step * k3[i][1];
-		temp[i][2] = y[i][2] + step * k3[i][2];
-		temp[i][3] = y[i][3] + step * k3[i][3];
-		temp[i][4] = y[i][4] + step * k3[i][4];
-		temp[i][5] = y[i][5] + step * k3[i][5];
+		for (int j = 0; j < 6; j++) y_4[6 * i + j] = y_1[6 * i + j] + (step * k3[6 * i + j]);
 	}
 
 	// Compute k4
 	for (unsigned int i = 0; i < size; i++) {
-		f(array, temp);
-		k4[i][0] = temp[i][0];
-		k4[i][1] = temp[i][1];
-		k4[i][2] = temp[i][2];
-		k4[i][3] = temp[i][3];
-		k4[i][4] = temp[i][4];
-		k4[i][5] = temp[i][5];
+		f(array, y_4);
+		for (int j = 0; j < 6; j++) k4[6 * i + j] = tmp[6 * i + j];
 	}
 
 	// Compute weighted average
 	for (unsigned int i = 0; i < size; i++) {
-		y_n[i][0] = y[i][0] + (step / 6.0) * (k1[i][0] + (2.0 * k2[i][0]) + (2.0 * k3[i][0]) + k4[i][0]);
-		y_n[i][1] = y[i][1] + (step / 6.0) * (k1[i][1] + (2.0 * k2[i][1]) + (2.0 * k3[i][1]) + k4[i][1]);
-		y_n[i][2] = y[i][2] + (step / 6.0) * (k1[i][2] + (2.0 * k2[i][2]) + (2.0 * k3[i][2]) + k4[i][2]);
-		y_n[i][3] = y[i][3] + (step / 6.0) * (k1[i][3] + (2.0 * k2[i][3]) + (2.0 * k3[i][3]) + k4[i][3]);
-		y_n[i][4] = y[i][4] + (step / 6.0) * (k1[i][4] + (2.0 * k2[i][4]) + (2.0 * k3[i][4]) + k4[i][4]);
-		y_n[i][5] = y[i][5] + (step / 6.0) * (k1[i][5] + (2.0 * k2[i][5]) + (2.0 * k3[i][5]) + k4[i][5]);
+		for (int j = 0; j < 6; j++) y_n[6 * i + j] = y_1[6 * i + j] + (step / 6.0) * (k1[6 * i + j] + (2.0 * k2[6 * i + j]) + (2.0 * k3[6 * i + j]) + k4[6 * i + j]);
 	}
 
 	// Set new position, velocity, and history
 	for (unsigned int i = 0; i < size; i++) {
 		// New position
-		array[i].pos[0] = y_n[i][0];
-		array[i].pos[1] = y_n[i][1];
-		array[i].pos[2] = y_n[i][2];
+		array[i].pos[0] = y_n[6 * i + 0];
+		array[i].pos[1] = y_n[6 * i + 1];
+		array[i].pos[2] = y_n[6 * i + 2];
 
 		// New velocity
-		array[i].vel[0] = y_n[i][3];
-		array[i].vel[1] = y_n[i][4];
-		array[i].vel[2] = y_n[i][5];
+		array[i].vel[0] = y_n[6 * i + 3];
+		array[i].vel[1] = y_n[6 * i + 4];
+		array[i].vel[2] = y_n[6 * i + 5];
 
 		// Add position to history
 		add_hist(array, i, t);
