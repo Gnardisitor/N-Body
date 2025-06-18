@@ -52,9 +52,9 @@ typedef struct {
 	double **hist;
 
 	// Current vectors
-	double pos[3];
-	double vel[3];
-	double acc[3];
+	double x, y, z;
+	double vx, vy, vz;
+	double ax, ay, az;
 } Body;
 
 // Create body array
@@ -92,12 +92,12 @@ Body *init_bodies(unsigned int wanted_size, unsigned int wanted_time, double wan
 		}
 
 		// Assign initial positions and velocities
-		array[i].pos[0] = positions[i][0];
-		array[i].pos[1] = positions[i][1];
-		array[i].pos[2] = positions[i][2];
-		array[i].vel[0] = velocities[i][0];
-		array[i].vel[1] = velocities[i][1];
-		array[i].vel[2] = velocities[i][2];
+		array[i].x = positions[i][0];
+		array[i].y = positions[i][1];
+		array[i].z = positions[i][2];
+		array[i].vx = velocities[i][0];
+		array[i].vy = velocities[i][1];
+		array[i].vz = velocities[i][2];
 	}
 
 	return array;
@@ -129,44 +129,44 @@ void add_hist(Body *array, unsigned int index, unsigned int t) {
 	}
 
 	// Add position to history
-	array[index].hist[t][0] = array[index].pos[0];
-	array[index].hist[t][1] = array[index].pos[1];
-	array[index].hist[t][2] = array[index].pos[2];
+	array[index].hist[t][0] = array[index].x;
+	array[index].hist[t][1] = array[index].y;
+	array[index].hist[t][2] = array[index].z;
 }
 
 // Compute acceleration for bodies
 void set_acc(Body *array) {
 	for (unsigned int i = 0; i < size; i++) {
-		array[i].acc[0] = 0.0;
-		array[i].acc[1] = 0.0;
-		array[i].acc[2] = 0.0;
+		array[i].ax = 0.0;
+		array[i].ay = 0.0;
+		array[i].az = 0.0;
 	}
 
 	for (unsigned int i = 0; i < size - 1; i++) {
 		for (long unsigned int j = i + 1; j < size; j++) {
 			// Compute vector
-			double vector[3];
-			vector[0] = DIST * (array[j].pos[0] - array[i].pos[0]);
-			vector[1] = DIST * (array[j].pos[1] - array[i].pos[1]);
-			vector[2] = DIST * (array[j].pos[2] - array[i].pos[2]);
+			double dx, dy, dz;
+			dx = DIST * (array[j].x - array[i].x);
+			dy = DIST * (array[j].y - array[i].y);
+			dz = DIST * (array[j].z - array[i].z);
 
 			// Square root of vector
-			double radius = sqrt((vector[0] * vector[0]) + (vector[1] * vector[1]) + (vector[2] * vector[2]));
+			double r= sqrt((dx * dx) + (dy * dy) + (dz * dz));
 
 			// Compute acceleration and assign to each body
-			double mag = (ACC * G) / (radius * radius * radius);
+			double mag = (ACC * G) / (r * r * r);
 			double m1 = array[j].mass;
 			double m2 = array[i].mass * -1.0;
 
 			// Compute acceleration vector of first body
-			array[i].acc[0] += mag * m1 * vector[0];
-			array[i].acc[1] += mag * m1 * vector[1];
-			array[i].acc[2] += mag * m1 * vector[2];
+			array[i].ax += mag * m1 * dx;
+			array[i].ay += mag * m1 * dy;
+			array[i].az += mag * m1 * dz;
 
 			// Compute acceleration vector of second body
-			array[j].acc[0] += mag * m2 * vector[0];
-			array[j].acc[1] += mag * m2 * vector[1];
-			array[j].acc[2] += mag * m2 * vector[2];
+			array[j].ax += mag * m2 * dx;
+			array[j].ay += mag * m2 * dy;
+			array[j].az += mag * m2 * dz;
 		}
 	}
 }
@@ -179,14 +179,14 @@ void euler(Body *array, unsigned int t) {
 	// Compute new velocity and position
 	for (unsigned int i = 0; i < size; i++) {
 		// Compute new velocity
-		array[i].vel[0] = array[i].vel[0] + (step * array[i].acc[0]);
-		array[i].vel[1] = array[i].vel[1] + (step * array[i].acc[1]);
-		array[i].vel[2] = array[i].vel[2] + (step * array[i].acc[2]);
+		array[i].vx = array[i].vx + (step * array[i].ax);
+		array[i].vy = array[i].vy + (step * array[i].ay);
+		array[i].vz = array[i].vz + (step * array[i].az);
 
 		// Compute new position
-		array[i].pos[0] = array[i].pos[0] + (step * array[i].vel[0]);
-		array[i].pos[1] = array[i].pos[1] + (step * array[i].vel[1]);
-		array[i].pos[2] = array[i].pos[2] + (step * array[i].vel[2]);
+		array[i].x = array[i].x + (step * array[i].vx);
+		array[i].y = array[i].y + (step * array[i].vy);
+		array[i].z = array[i].z + (step * array[i].vz);
 
 		// Add position to history
 		add_hist(array, i, t);
@@ -197,9 +197,9 @@ void euler(Body *array, unsigned int t) {
 void verlet(Body *array, unsigned int t) {
 	// Compute position at half-step
 	for (unsigned int i = 0; i < size; i++) {
-		array[i].pos[0] = array[i].pos[0] + (0.5 * step * array[i].vel[0]);
-		array[i].pos[1] = array[i].pos[1] + (0.5 * step * array[i].vel[1]);
-		array[i].pos[2] = array[i].pos[2] + (0.5 * step * array[i].vel[2]);
+		array[i].x = array[i].x + (0.5 * step * array[i].vx);
+		array[i].y = array[i].y + (0.5 * step * array[i].vy);
+		array[i].z = array[i].z + (0.5 * step * array[i].vz);
 	}
 
 	// Compute acceleration for all bodies
@@ -208,14 +208,14 @@ void verlet(Body *array, unsigned int t) {
 	// Compute next half-step
 	for (unsigned int i = 0; i < size; i++) {
 		// Compute new velocity
-		array[i].vel[0] = array[i].vel[0] + (step * array[i].acc[0]);
-		array[i].vel[1] = array[i].vel[1] + (step * array[i].acc[1]);
-		array[i].vel[2] = array[i].vel[2] + (step * array[i].acc[2]);
+		array[i].vx = array[i].vx + (step * array[i].ax);
+		array[i].vy = array[i].vy + (step * array[i].ay);
+		array[i].vz = array[i].vz + (step * array[i].az);
 
 		// Compute new position at the end of the step
-		array[i].pos[0] = array[i].pos[0] + (0.5 * step * array[i].vel[0]);
-		array[i].pos[1] = array[i].pos[1] + (0.5 * step * array[i].vel[1]);
-		array[i].pos[2] = array[i].pos[2] + (0.5 * step * array[i].vel[2]);
+		array[i].x = array[i].x + (0.5 * step * array[i].vx);
+		array[i].y = array[i].y + (0.5 * step * array[i].vy);
+		array[i].z = array[i].z + (0.5 * step * array[i].vz);
 
 		// Add position to history
 		add_hist(array, i, t);
@@ -247,9 +247,9 @@ void init_rk4(void) {
 void f(Body *array, double *y) {
 	// Assign new position
 	for (unsigned int i = 0; i < size; i++) {
-		array[i].pos[0] = y[6 * i + 0];
-		array[i].pos[1] = y[6 * i + 1];
-		array[i].pos[2] = y[6 * i + 2];
+		array[i].x = y[6 * i + 0];
+		array[i].y = y[6 * i + 1];
+		array[i].z = y[6 * i + 2];
 	}
 
 	// Compute acceleration for all bodies
@@ -263,21 +263,21 @@ void f(Body *array, double *y) {
 		tmp[6 * i + 2] = y[6 * i + 5];
 
 		// Acceleration
-		tmp[6 * i + 3] = array[i].acc[0];
-		tmp[6 * i + 4] = array[i].acc[1];
-		tmp[6 * i + 5] = array[i].acc[2];
+		tmp[6 * i + 3] = array[i].ax;
+		tmp[6 * i + 4] = array[i].ay;
+		tmp[6 * i + 5] = array[i].az;
 	}
 }
 
 void rk4(Body *array, unsigned int t) {
 	// Assign values of y1
 	for (unsigned int i = 0; i < size; i++) {
-		y_1[6 * i + 0] = array[i].pos[0];
-		y_1[6 * i + 1] = array[i].pos[1];
-		y_1[6 * i + 2] = array[i].pos[2];
-		y_1[6 * i + 3] = array[i].vel[0];
-		y_1[6 * i + 4] = array[i].vel[1];
-		y_1[6 * i + 5] = array[i].vel[2];
+		y_1[6 * i + 0] = array[i].x;
+		y_1[6 * i + 1] = array[i].y;
+		y_1[6 * i + 2] = array[i].z;
+		y_1[6 * i + 3] = array[i].vx;
+		y_1[6 * i + 4] = array[i].vy;
+		y_1[6 * i + 5] = array[i].vz;
 	}
 
 	// Compute k1
@@ -327,14 +327,14 @@ void rk4(Body *array, unsigned int t) {
 	// Set new position, velocity, and history
 	for (unsigned int i = 0; i < size; i++) {
 		// New position
-		array[i].pos[0] = y_n[6 * i + 0];
-		array[i].pos[1] = y_n[6 * i + 1];
-		array[i].pos[2] = y_n[6 * i + 2];
+		array[i].x = y_n[6 * i + 0];
+		array[i].y = y_n[6 * i + 1];
+		array[i].z = y_n[6 * i + 2];
 
 		// New velocity
-		array[i].vel[0] = y_n[6 * i + 3];
-		array[i].vel[1] = y_n[6 * i + 4];
-		array[i].vel[2] = y_n[6 * i + 5];
+		array[i].vx = y_n[6 * i + 3];
+		array[i].vy = y_n[6 * i + 4];
+		array[i].vz = y_n[6 * i + 5];
 
 		// Add position to history
 		add_hist(array, i, t);
