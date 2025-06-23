@@ -71,7 +71,6 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 
 int get_body_vars(unsigned int body) {
 	// Create curl object
-	int a;
 	curl = curl_easy_init();
 	if (curl == NULL) {
 		printf("An error has occured!\n");
@@ -83,13 +82,9 @@ int get_body_vars(unsigned int body) {
 	chunk.memory = malloc(1);
 	chunk.size = 0;
 
-	// Get correct url
-	//strcpy(url, "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='399'&CENTER='@0'&EPHEM_TYPE='VECTOR'&VEC_TABLE='2'&OUT_UNITS='AU-D'&START_TIME='2000-01-01'&STOP_TIME='2000-01-02'&STEP_SIZE='2%20d'");
+	// Get correct url and curl operations
 	sprintf(url, "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='%s'&CENTER='@0'&EPHEM_TYPE='VECTOR'&VEC_TABLE='2'&OUT_UNITS='AU-D'&START_TIME='%d-01-01'&STOP_TIME='2000-01-02'&STEP_SIZE='2%%20d'", id[body], year);
-
-	// Set curl operation
 	curl_easy_setopt(curl, CURLOPT_URL, url);
-	//curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
 
@@ -113,6 +108,7 @@ int get_body_vars(unsigned int body) {
 		body_vars[i] = atof(var);
 	}
 
+	// Cleanup chunk and curl instance
 	curl_easy_cleanup(curl);
 	free(chunk.memory);
 	return 0;
