@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <math.h>
+#include <curl/curl.h>
 
 // Required constants
 #define G		6.67e-11
@@ -9,36 +10,24 @@
 #define TIME	86400.0
 #define ACC		(TIME * TIME) / DIST
 
-// Masses of each body
+// Constants for bodies
 const double masses[9] = {1.989e30, 3.301e23, 4.868e24, 5.972e24, 6.417e23, 1.898e27, 5.683e26, 8.681e25, 1.024e26};
-const double positions[9][3] = {
-	{-7.139867342351965e-3, 2.063456515496323e-4, -2.792293024590130e-3},
-	{-1.478679470531864e-1, -2.313921354816243e-2, -4.466932510516238e-1},
-	{-7.257700842628461e-1, 4.137818693791794e-2, -2.529609371887610e-2},
-	{-1.756645157282301e-1, 2.022251612712026e-4, 9.659910118824405e-1},
-	{1.383221198696652e0, -3.441166875772086e-2, -2.380201528357480e-2},
-	{3.996320621351185e0, -1.016166987472685e-1, 2.932560894863292e0},
-	{6.401416168163572e0, -3.689209424165721e-1, 6.565250459597368e0},
-	{1.442337769031398e1, -2.379227902376431e-1, -1.373845003715413e1},
-	{1.680361785911107e1, 1.274769173927470e-1, -2.499544357157440e1}
-};
-const double velocities[9][3] = {
-	{5.374261984736907e-6, -9.423856739196385e-8, -7.410968933449047e-6},
-	{2.117424562091145e-2, -2.522925269286375e-3, -7.105386389490765e-3},
-	{5.189070091302415e-4, -3.072687586355490e-4, -2.031355259141011e-2},
-	{-1.722857157049219e-2, -5.861283850800270e-8, -3.015071218794761e-3},
-	{7.533013979366747e-4, 2.996589720762724e-4, 1.517888770772419e-2},
-	{-4.558376533394469e-3, 7.537585811287700e-5, 6.439863253809189e-3},
-	{-4.285166236914331e-3, 1.025155157793841e-4, 3.884579924219014e-3},
-	{2.683840415872547e-3, -2.484248825617868e-5, 2.665016671623693e-3},
-	{2.584591104377939e-3, -9.629428153854004e-5, 1.768944210379373e-3}
-};
+const char *id[9] = {"010", "199", "299", "399", "499", "599", "699", "799", "899"};
 
 // Required array variables
-long unsigned int time;
+long unsigned int total_time;
 unsigned int size;
 double step;
 char *algo;
+
+// Curl variables
+CURL *curl;
+CURLcode result;
+double body_vars[6];
+int year;
+char url[250];
+char *pos[7];
+char var[50];
 
 // Required RK4 variables
 double *y_1, *y_2, *y_3, *y_4, *y_n, *tmp, *k1, *k2, *k3, *k4;
@@ -57,8 +46,82 @@ typedef struct {
 	double ax, ay, az;
 } Body;
 
+// Function to write data
+struct MemoryStruct {
+  char *memory;
+  size_t size;
+};
+
+static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+	size_t realsize = size * nmemb;
+	struct MemoryStruct *mem = (struct MemoryStruct *)userp;
+	char *ptr = realloc(mem->memory, mem->size + realsize + 1);
+	if(!ptr) {
+    	printf("not enough memory (realloc returned NULL)\n");
+     return 0;
+	}
+
+	mem->memory = ptr;
+	memcpy(&(mem->memory[mem->size]), contents, realsize);
+	mem->size += realsize;
+	mem->memory[mem->size] = 0;
+
+	return realsize;
+}
+
+int get_body_vars(unsigned int body) {
+	// Create curl object
+	int a;
+	curl = curl_easy_init();
+	if (curl == NULL) {
+		printf("An error has occured!\n");
+		exit(1);
+	}
+
+	// Create chunk
+	struct MemoryStruct chunk;
+	chunk.memory = malloc(1);
+	chunk.size = 0;
+
+	// Get correct url
+	//strcpy(url, "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='399'&CENTER='@0'&EPHEM_TYPE='VECTOR'&VEC_TABLE='2'&OUT_UNITS='AU-D'&START_TIME='2000-01-01'&STOP_TIME='2000-01-02'&STEP_SIZE='2%20d'");
+	sprintf(url, "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='%s'&CENTER='@0'&EPHEM_TYPE='VECTOR'&VEC_TABLE='2'&OUT_UNITS='AU-D'&START_TIME='%d-01-01'&STOP_TIME='2000-01-02'&STEP_SIZE='2%%20d'", id[body], year);
+
+	// Set curl operation
+	curl_easy_setopt(curl, CURLOPT_URL, url);
+	//curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+
+	result = curl_easy_perform(curl);
+	if (result != CURLE_OK) {
+		fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(result));
+		return 1;
+	}
+
+	// Find all required positions in string
+	pos[0] = strstr(chunk.memory, "X =");
+	pos[1] = strstr(chunk.memory, "Y =");
+	pos[2] = strstr(chunk.memory, "Z =");
+	pos[3] = strstr(chunk.memory, "VX=");
+	pos[4] = strstr(chunk.memory, "VY=");
+	pos[5] = strstr(chunk.memory, "VZ=");
+	pos[6] = strstr(chunk.memory, "$$EOE");
+
+	for (int i = 0; i < 6; i++) {
+		strncpy(var, (pos[i] + 3), pos[i + 1] - pos[i] + 3);
+		body_vars[i] = atof(var);
+	}
+
+	curl_easy_cleanup(curl);
+	free(chunk.memory);
+	return 0;
+}
+
 // Create body array
 Body *init_bodies(unsigned int wanted_size, unsigned int wanted_time, double wanted_step) {
+	curl_global_init(CURL_GLOBAL_ALL);
+
 	// Assign size of array
 	if (wanted_size < 1 || wanted_size > 8) {
 		printf("Size must be between 1 and 8 planets!\n");
@@ -73,33 +136,38 @@ Body *init_bodies(unsigned int wanted_size, unsigned int wanted_time, double wan
 		return NULL;
 	}
 
-	// Assign max time and step in steps
+	// Assign max total_time and step in steps
 	if (wanted_time < 1 || wanted_step <= 0.0) {
-		printf("Time must be larger than 1 day and step must be larger than 0");
+		printf("Time must be larger than 1 day and step must be larger than 0!\n");
 		free(array);
 		return NULL;
 	}
 	step = wanted_step;
-	time = (long unsigned int) (((double) wanted_time) / step);
+	total_time = (long unsigned int) (((double) wanted_time) / step);
 
 	// Initialize each body
 	for (unsigned int i = 0; i < size; i++) {
 		array[i].mass = masses[i];
-		array[i].hist = calloc(time, sizeof(double *));
+		array[i].hist = calloc(total_time, sizeof(double *));
 		if (array[i].hist == NULL) {
 			printf("History array could not be created!\n");
 			return NULL;
 		}
 
 		// Assign initial positions and velocities
-		array[i].x = positions[i][0];
-		array[i].y = positions[i][1];
-		array[i].z = positions[i][2];
-		array[i].vx = velocities[i][0];
-		array[i].vy = velocities[i][1];
-		array[i].vz = velocities[i][2];
+		if (get_body_vars(i) == 1) {
+			printf("Could not get initial conditions for bodies!\n");
+			return NULL;
+		};
+		array[i].x = body_vars[0];
+		array[i].y = body_vars[1];
+		array[i].z = body_vars[2];
+		array[i].vx = body_vars[3];
+		array[i].vy = body_vars[4];
+		array[i].vz = body_vars[5];
 	}
 
+	curl_global_cleanup();
 	return array;
 }
 
@@ -108,7 +176,7 @@ void free_bodies(Body *array) {
 	// Free history arrays
 	for (unsigned int i = 0; i < size; i++) {
 		// Free each position history array
-		for (long unsigned int j = 0; j < time; j++) {
+		for (long unsigned int j = 0; j < total_time; j++) {
 			free(array[i].hist[j]);
 		}
 
@@ -244,6 +312,20 @@ void init_rk4(void) {
 	}
 }
 
+// Free allocated RK4 arrays
+void free_rk4(void) {
+	free(y_1);
+	free(y_2);
+	free(y_3);
+	free(y_4);
+	free(y_n);
+	free(tmp);
+	free(k1);
+	free(k2);
+	free(k3);
+	free(k4);
+}
+
 void f(Body *array, double *y) {
 	// Assign new position
 	for (unsigned int i = 0; i < size; i++) {
@@ -344,29 +426,31 @@ void rk4(Body *array, unsigned int t) {
 // Main function
 int main(int argc, char **argv) {
 		// Check for correct argument count
-		if (argc != 5) {
-			printf("USAGE: ./nbody BODIES TIME STEP ALGORITHM\n");
+		if (argc != 6) {
+			printf("USAGE: ./nbody BODIES YEAR TIME STEP ALGORITHM\n");
 			return 1;
 		}
 		// Create body array
-		Body *bodies = init_bodies(atoi(argv[1]), atoi(argv[2]), atof(argv[3]));
+		year = atoi(argv[2]);
+		Body *bodies = init_bodies(atoi(argv[1]), atoi(argv[3]), atof(argv[4]));
 		if (bodies == NULL) {
 			printf("There was an error creating the body array!\n");
 			return 1;
 		}
 
 		// Iterate using wanted algorithm
-		if (strcmp(argv[4], "euler") == 0) {
-			for (long unsigned int t = 0; t < time; t++) euler(bodies, t);
+		if (strcmp(argv[5], "euler") == 0) {
+			for (long unsigned int t = 0; t < total_time; t++) euler(bodies, t);
 			algo = "euler.csv";
 		}
-		else if (strcmp(argv[4], "verlet") == 0) {
-			for (long unsigned int t = 0; t < time; t++) verlet(bodies, t);
+		else if (strcmp(argv[5], "verlet") == 0) {
+			for (long unsigned int t = 0; t < total_time; t++) verlet(bodies, t);
 			algo = "verlet.csv";
 		}
-		else if (strcmp(argv[4], "rk4") == 0) {
+		else if (strcmp(argv[5], "rk4") == 0) {
 			init_rk4();
-			for (long unsigned int t = 0; t < time; t++) rk4(bodies, t);
+			for (long unsigned int t = 0; t < total_time; t++) rk4(bodies, t);
+			free_rk4();
 			algo = "rk4.csv";
 		}
 		else {
@@ -384,8 +468,8 @@ int main(int argc, char **argv) {
 			return 1;
 		}
 
-		// Print one time step at a time
-		for (long unsigned int t = 0; t < time; t++) {
+		// Print one total_time step at a total_time
+		for (long unsigned int t = 0; t < total_time; t++) {
 			for (unsigned int i = 0; i < size; i++) {
 				fprintf(csv, "%lf,%lf,%lf,", bodies[i].hist[t][0], bodies[i].hist[t][1], bodies[i].hist[t][2]);
 			}
