@@ -83,7 +83,7 @@ int get_body_vars(unsigned int body) {
 	chunk.size = 0;
 
 	// Get correct url and curl operations
-	sprintf(url, "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='%s'&CENTER='@0'&EPHEM_TYPE='VECTOR'&VEC_TABLE='2'&OUT_UNITS='AU-D'&START_TIME='%d-01-01'&STOP_TIME='2000-01-02'&STEP_SIZE='2%%20d'", id[body], year);
+	sprintf(url, "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='%s'&CENTER='@0'&EPHEM_TYPE='VECTOR'&VEC_TABLE='2'&OUT_UNITS='AU-D'&START_TIME='%d-01-01'&STOP_TIME='%d-01-02'&STEP_SIZE='2%%20d'", id[body], year, year);
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
