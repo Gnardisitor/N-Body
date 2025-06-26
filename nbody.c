@@ -5,13 +5,20 @@
 #include <curl/curl.h>
 
 // Required constants
-#define G		6.67e-11
-#define DIST	1.496e11
+#define G		+6.6743E-11
+#define DIST	+1.496E+11
 #define TIME	86400.0
 #define ACC		(TIME * TIME) / DIST
 
+// Constants for PEFRL
+#define XI		+0.1786178958448091E+00		// ξ
+#define LAMBDA	-0.2123418310626054E+00		// λ
+#define CHI		-0.6626458266981849E-01		// χ
+#define P1		(1.0 - (2.0 * LAMBDA)) * 0.5
+#define P2		1.0 - (2.0 * (CHI + XI))
+
 // Constants for bodies
-const double masses[9] = {1.989e30, 3.301e23, 4.868e24, 5.972e24, 6.417e23, 1.898e27, 5.683e26, 8.681e25, 1.024e26};
+const double masses[9] = {1.989E30, 3.301E23, 4.868E24, 5.972E24, 6.417E23, 1.898E27, 5.683E26, 8.681E25, 1.024E26};
 const char *id[9] = {"010", "199", "299", "399", "499", "599", "699", "799", "899"};
 
 // Required array variables
@@ -422,6 +429,70 @@ void rk4(Body *array, unsigned int t) {
 	}
 }
 
+// Implementation of position extended forest-ruth like algorithm (4th order)
+void pefrl(Body *array, unsigned int t) {
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].x = array[i].x + (XI * step * array[i].vx);
+		array[i].y = array[i].y + (XI * step * array[i].vy);
+		array[i].z = array[i].z + (XI * step * array[i].vz);
+	}
+
+	set_acc(array);
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].vx = array[i].vx + (P1 * step * array[i].ax);
+		array[i].vy = array[i].vy + (P1 * step * array[i].ay);
+		array[i].vz = array[i].vz + (P1 * step * array[i].az);
+	}
+
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].x = array[i].x + (XI * step * array[i].vx);
+		array[i].y = array[i].y + (XI * step * array[i].vy);
+		array[i].z = array[i].z + (XI * step * array[i].vz);
+	}
+
+	set_acc(array);
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].vx = array[i].vx + (LAMBDA * step * array[i].ax);
+		array[i].vy = array[i].vy + (LAMBDA * step * array[i].ay);
+		array[i].vz = array[i].vz + (LAMBDA * step * array[i].az);
+	}
+
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].x = array[i].x + (P2 * step * array[i].vx);
+		array[i].y = array[i].y + (P2 * step * array[i].vy);
+		array[i].z = array[i].z + (P2 * step * array[i].vz);
+	}
+
+	set_acc(array);
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].vx = array[i].vx + (LAMBDA * step * array[i].ax);
+		array[i].vy = array[i].vy + (LAMBDA * step * array[i].ay);
+		array[i].vz = array[i].vz + (LAMBDA * step * array[i].az);
+	}
+
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].x = array[i].x + (XI * step * array[i].vx);
+		array[i].y = array[i].y + (XI * step * array[i].vy);
+		array[i].z = array[i].z + (XI * step * array[i].vz);
+	}
+
+	set_acc(array);
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].vx = array[i].vx + (P1 * step * array[i].ax);
+		array[i].vy = array[i].vy + (P1 * step * array[i].ay);
+		array[i].vz = array[i].vz + (P1 * step * array[i].az);
+	}
+
+	for (unsigned int i = 0; i < size; i++) {
+		array[i].x = array[i].x + (XI * step * array[i].vx);
+		array[i].y = array[i].y + (XI * step * array[i].vy);
+		array[i].z = array[i].z + (XI * step * array[i].vz);
+	}
+
+	// Add final positions to history
+	for (unsigned int i = 0; i < size; i++) add_hist(array, i, t);
+}
+
 // Main function
 int main(int argc, char **argv) {
 		// Check for correct argument count
@@ -445,6 +516,10 @@ int main(int argc, char **argv) {
 		else if (strcmp(argv[5], "verlet") == 0) {
 			for (long unsigned int t = 0; t < total_time; t++) verlet(bodies, t);
 			algo = "verlet.csv";
+		}
+		else if (strcmp(argv[5], "pefrl") == 0) {
+			for (long unsigned int t = 0; t < total_time; t++) verlet(bodies, t);
+			algo = "pefrl.csv";
 		}
 		else if (strcmp(argv[5], "rk4") == 0) {
 			init_rk4();
