@@ -23,6 +23,7 @@ char *algo;
 // Curl variables
 CURL *curl;
 CURLcode result;
+struct MemoryStruct chunk;
 double body_vars[6];
 int year;
 char url[250];
@@ -70,23 +71,13 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb, voi
 }
 
 int get_body_vars(unsigned int body) {
-	// Create curl object
-	curl = curl_easy_init();
-	if (curl == NULL) {
-		printf("An error has occured!\n");
-		exit(1);
-	}
-
 	// Create chunk
-	struct MemoryStruct chunk;
 	chunk.memory = malloc(1);
 	chunk.size = 0;
 
 	// Get correct url and curl operations
 	sprintf(url, "https://ssd.jpl.nasa.gov/api/horizons.api?format=text&COMMAND='%s'&CENTER='@0'&EPHEM_TYPE='VECTOR'&VEC_TABLE='2'&OUT_UNITS='AU-D'&START_TIME='%d-01-01'&STOP_TIME='%d-01-02'&STEP_SIZE='2%%20d'", id[body], year, year);
 	curl_easy_setopt(curl, CURLOPT_URL, url);
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
 
 	result = curl_easy_perform(curl);
 	if (result != CURLE_OK) {
@@ -108,8 +99,7 @@ int get_body_vars(unsigned int body) {
 		body_vars[i] = atof(var);
 	}
 
-	// Cleanup chunk and curl instance
-	curl_easy_cleanup(curl);
+	// Cleanup chunk
 	free(chunk.memory);
 	return 0;
 }
@@ -117,6 +107,17 @@ int get_body_vars(unsigned int body) {
 // Create body array
 Body *init_bodies(unsigned int wanted_size, unsigned int wanted_time, double wanted_step) {
 	curl_global_init(CURL_GLOBAL_ALL);
+
+	// Create curl object
+	curl = curl_easy_init();
+	if (curl == NULL) {
+		printf("An error has occured!\n");
+		exit(1);
+	}
+
+	// Set curl operations
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteMemoryCallback);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
 
 	// Assign size of array
 	if (wanted_size < 1 || wanted_size > 8) {
@@ -163,6 +164,8 @@ Body *init_bodies(unsigned int wanted_size, unsigned int wanted_time, double wan
 		array[i].vz = body_vars[5];
 	}
 
+	// Clean up curl object
+	curl_easy_cleanup(curl);
 	curl_global_cleanup();
 	return array;
 }
