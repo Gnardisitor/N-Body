@@ -544,12 +544,13 @@ int main(int argc, char **argv) {
 		// Write to json file all results and extra details
 		fprintf(json, "{\n\"n_steps\": %lu,\n\"step\": %lf,\n\"n\": %u,\n\"planets\": [\n", total_time, step, size);
 		for (unsigned int i = 0; i < size; i++) {
-			fprintf(json, "\t{\n\t\t\"name\": \"%s\",\n\t\t\"color\": 0x%x,\n\t\t\"size\": %lf,\n\t\t\"pos\": [\n", names[i], colors[i], sizes[i]);
+			fprintf(json, "\t{\n\t\t\"name\": \"%s\",\n\t\t\"color\": %d,\n\t\t\"size\": %lf,\n\t\t\"pos\": [\n", names[i], colors[i], sizes[i]);
 			for (unsigned int t = 0; t < total_time - 1; t++) {
 				fprintf(json, "\t\t\t[%lf, %lf, %lf],\n", bodies[i].hist[t][0], bodies[i].hist[t][1], bodies[i].hist[t][2]);
 			}
 			fprintf(json, "\t\t\t[%lf, %lf, %lf]\n", bodies[i].hist[total_time - 1][0], bodies[i].hist[total_time - 1][1], bodies[i].hist[total_time - 1][2]);
-			fprintf(json, "\t\t]\n\t},\n");
+			if (i < size - 1) fprintf(json, "\t\t]\n\t},\n");
+			else fprintf(json, "\t\t]\n\t}\n");
 		}
 		fprintf(json, "]\n}");
 
