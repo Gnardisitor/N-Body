@@ -8,4 +8,4 @@ test:
 	echo `time ./nbody 8 1000 0.1 euler`
 
 clean:
-	rm *.csv nbody
+	rm *.json nbody

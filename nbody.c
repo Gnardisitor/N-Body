@@ -11,21 +11,24 @@
 #define ACC		(TIME * TIME) / DIST
 
 // Constants for PEFRL
-#define XI		+0.1786178958448091E+00		// ξ
-#define LAMBDA	-0.2123418310626054E+00		// λ
-#define CHI		-0.6626458266981849E-01		// χ
-#define P1		(1.0 - (2.0 * LAMBDA)) * 0.5
-#define P2		1.0 - (2.0 * (CHI + XI))
+#define XI		+0.1786178958448091E+00			// ξ
+#define LAMBDA	-0.2123418310626054E+00			// λ
+#define CHI		-0.6626458266981849E-01			// χ
+#define P1		(1.0 - (2.0 * LAMBDA)) * 0.5	// (1 - 2λ) / 2
+#define P2		1.0 - (2.0 * (CHI + XI))		// 1 - 2(χ + ξ)
 
 // Constants for bodies
 const double masses[9] = {1.989E30, 3.301E23, 4.868E24, 5.972E24, 6.417E23, 1.898E27, 5.683E26, 8.681E25, 1.024E26};
 const char *id[9] = {"010", "199", "299", "399", "499", "599", "699", "799", "899"};
+const char *names[9] = {"sun", "mercury", "earth", "mars", "jupiter", "saturn", "uranus", "neptune"};
+const double sizes[9] = {0.35, 0.1, 0.2, 0.25, 0.15, 0.5, 0.5, 0.4, 0.4};
+const int colors[9]	= {0xffff00, 0x666699, 0x993333, 0x0099ff, 0xcc3300, 0x996600, 0xffcc99, 0x99ccff, 0x6666ff};
 
 // Required array variables
 long unsigned int total_time;
 unsigned int size;
 double step;
-char *algo;
+char *filename = "pos.json";
 
 // Curl variables
 CURL *curl;
@@ -511,21 +514,17 @@ int main(int argc, char **argv) {
 		// Iterate using wanted algorithm
 		if (strcmp(argv[5], "euler") == 0) {
 			for (long unsigned int t = 0; t < total_time; t++) euler(bodies, t);
-			algo = "euler.csv";
 		}
 		else if (strcmp(argv[5], "verlet") == 0) {
 			for (long unsigned int t = 0; t < total_time; t++) verlet(bodies, t);
-			algo = "verlet.csv";
 		}
 		else if (strcmp(argv[5], "pefrl") == 0) {
 			for (long unsigned int t = 0; t < total_time; t++) verlet(bodies, t);
-			algo = "pefrl.csv";
 		}
 		else if (strcmp(argv[5], "rk4") == 0) {
 			init_rk4();
 			for (long unsigned int t = 0; t < total_time; t++) rk4(bodies, t);
 			free_rk4();
-			algo = "rk4.csv";
 		}
 		else {
 			printf("Must have a valid algorithm for use!\n");
@@ -535,23 +534,27 @@ int main(int argc, char **argv) {
 
 		printf("Finished simulation!\n");
 
-		// Create csv and write down all the
-		FILE *csv = fopen(algo, "wt");
-		if (csv == NULL) {
+		// Create json
+		FILE *json = fopen(filename, "wt");
+		if (json == NULL) {
 			printf("Could not open file!\n");
 			return 1;
 		}
 
-		// Print one total_time step at a total_time
-		for (long unsigned int t = 0; t < total_time; t++) {
-			for (unsigned int i = 0; i < size; i++) {
-				fprintf(csv, "%lf,%lf,%lf,", bodies[i].hist[t][0], bodies[i].hist[t][1], bodies[i].hist[t][2]);
+		// Write to json file all results and extra details
+		fprintf(json, "{\n\"n_steps\": %lu,\n\"step\": %lf,\n\"n\": %u,\n\"planets\": [\n", total_time, step, size);
+		for (unsigned int i = 0; i < size; i++) {
+			fprintf(json, "\t{\n\t\t\"name\": \"%s\",\n\t\t\"color\": 0x%x,\n\t\t\"size\": %lf,\n\t\t\"pos\": [\n", names[i], colors[i], sizes[i]);
+			for (unsigned int t = 0; t < total_time - 1; t++) {
+				fprintf(json, "\t\t\t[%lf, %lf, %lf],\n", bodies[i].hist[t][0], bodies[i].hist[t][1], bodies[i].hist[t][2]);
 			}
-			fprintf(csv, "\n");
+			fprintf(json, "\t\t\t[%lf, %lf, %lf]\n", bodies[i].hist[total_time - 1][0], bodies[i].hist[total_time - 1][1], bodies[i].hist[total_time - 1][2]);
+			fprintf(json, "\t\t]\n\t},\n");
 		}
+		fprintf(json, "]\n}");
 
 		// Free all memory
-		fclose(csv);
+		fclose(json);
 		free_bodies(bodies);
 
 		return 0;
