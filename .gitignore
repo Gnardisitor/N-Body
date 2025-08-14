@@ -1,7 +1,10 @@
 # Ignore VSCode files
 .vscode/
 
-# Ignore output files
+# Ignore build files
 n-body
+*.o
+
+# Ignore output files
 *.json
 *.csv
