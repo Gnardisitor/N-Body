@@ -1,8 +1,19 @@
-clang: nbody.c
-	clang -lm -lcurl -o nbody nbody.c
+CC		= gcc
+CFLAGS	= -Wall -Wextra -Werror -std=c99
+SRC		= $(wildcard src/*.c)
+OBJ     = $(SRC:.c=.o)
+TARGET	= n-body
 
-gcc: nbody.c
-	gcc -lm -lcurl -o nbody nbody.c
+$(TARGET): $(OBJ)
+	$(CC) $(CFLAGS) -lm -lcurl -o $@ $^
+
+src/%.o: src/%.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+run: $(TARGET)
+	./$(TARGET)
 
 clean:
-	rm *.json nbody
+	rm $(TARGET) src/*.o *.json
+
+.PHONY: clean run'
