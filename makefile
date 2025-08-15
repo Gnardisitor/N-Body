@@ -1,8 +1,8 @@
-CC		= gcc
-CFLAGS	= -Wall -Wextra -Werror -std=c99
-SRC		= $(wildcard src/*.c)
+CC      = clang
+CFLAGS  = -Wall -Wextra -Werror -std=c99
+SRC     = $(wildcard src/*.c)
 OBJ     = $(SRC:.c=.o)
-TARGET	= n-body
+TARGET  = n-body
 
 $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -lm -lcurl -o $@ $^
